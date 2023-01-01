@@ -1,0 +1,116 @@
+#include<stdlib.h>
+#include<stdio.h>
+#include<string.h>
+#include<unistd.h>
+#include<sys/time.h>
+#include<sys/stat.h>
+#include<sys/types.h>
+#include<signal.h>
+#include<fcntl.h>
+
+#define BUFSIZE 1024
+/*#define DATA_SIZE 16*/
+#define DATA_SIZE 64
+int main(void){
+
+        pid_t pid;
+        int buf[BUFSIZE];
+        int i,n,nread,count=0,k=0;
+        int pd0,pd1,pd2,pd3,pd4,pd5,pd6,pd7;
+        int fd0,fd1;
+        int buf_first;
+        int tmp;
+        int cur;
+        #ifdef TIMES
+                struct timeval stime,ptime,ctime;
+                int time_result_ps,time_result_cs;
+                int time_result_pu,time_result_cu;//sec 와마읔로세컨드
+                gettimeofday(&stime,NULL);
+        #endif
+        switch(pid=fork()){
+                case -1:
+                        perror("fork");
+                        exit(1);
+                        break;
+                case 0:
+                        fd0=open("NEWIODATA0",O_CREAT|O_RDWR,0644);
+
+                        pd0=open("./IO0_PIPE0",O_RDONLY);
+                        pd1=open("./IO0_PIPE1",O_RDONLY);
+                        pd2=open("./IO0_PIPE2",O_RDONLY);
+                        pd3=open("./IO0_PIPE3",O_RDONLY);
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+
+                        read(pd0,&buf,sizeof(buf));//1K단위로 읽은다.
+                        write(fd0,&buf,sizeof(buf));
+                        }
+                        for(i=0;i<DATA_SIZE/8;i++){
+
+                        read(pd1,&buf,sizeof(buf));
+                        write(fd0,&buf,sizeof(buf));
+                        }
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+                        read(pd2,&buf,sizeof(buf));
+                        write(fd0,&buf,sizeof(buf));
+                        }
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+                        read(pd3,&buf,sizeof(buf));
+                        write(fd0,&buf,sizeof(buf));
+
+                        }
+                        #ifdef TIMES
+                        gettimeofday(&ctime,NULL);
+                        time_result_cs=ctime.tv_sec-stime.tv_sec;
+                        time_result_cu=ctime.tv_usec-stime.tv_usec;
+                        printf("I/00는 실행(초)%ld,실행(usec)%ld\n",time_result_cs,time_result_cu);
+                        #endif
+                        break;
+
+                default:
+                        fd1=open("NEWIODATA1",O_CREAT|O_RDWR,0644);
+
+                        pd4=open("./IO1_PIPE0",O_RDONLY);
+                        pd5=open("./IO1_PIPE1",O_RDONLY);
+                        pd6=open("./IO1_PIPE2",O_RDONLY);
+                        pd7=open("./IO1_PIPE3",O_RDONLY);
+
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+
+                        read(pd4,&buf,sizeof(buf));//1K단위로 읽은다.
+                        write(fd1,&buf,sizeof(buf));
+                        }
+                        for(i=0;i<DATA_SIZE/8;i++){
+
+                        read(pd5,&buf,sizeof(buf));
+                        write(fd1,&buf,sizeof(buf));
+                        }
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+                        read(pd6,&buf,sizeof(buf));
+                        write(fd1,&buf,sizeof(buf));
+                        }
+
+                        for(i=0;i<DATA_SIZE/8;i++){
+                        read(pd7,&buf,sizeof(buf));
+                        write(fd1,&buf,sizeof(buf));
+
+                        }
+                        #ifdef TIMES
+                        gettimeofday(&ptime,NULL);
+                         time_result_ps=ptime.tv_sec-stime.tv_sec;
+                        time_result_pu=ptime.tv_usec-stime.tv_usec;
+                        printf("I/o1는 실행(초)%ld,실행(usec)%ld\n",time_result_ps,time_result_pu);
+                        #endif
+
+
+
+                        break;
+
+        }
+
+
+}
