@@ -1,0 +1,417 @@
+#include<stdlib.h>
+#include<stdio.h>
+#include<string.h>
+#include<sys/wait.h>
+#include<errno.h>
+#include<unistd.h>
+#include<sys/time.h>
+#include<sys/stat.h>
+#include<sys/types.h>
+#include<signal.h>
+#include<fcntl.h>
+
+/*#define DATA_SIZE 16*1024*/
+#define DATA_SIZE 64*1024
+
+int main(void){
+
+        int i,nread,j,fd,cur=0,count=0;
+        int flag,tmp;
+        int pd0,pd1,pd2,pd3;
+        int newpd0,newpd1,newpd2,newpd3;
+        int pipe0,pipe1,pipe2,pipe3,pipe4,pipe5,pipe6,pipe7;
+        int pipe01,pipe02,pipe03,pipe12,pipe13,pipe23,pipe10,pipe20,pipe30,pipe21,pipe31,pipe32;
+        int move[DATA_SIZE/16],buf2[1024];//buf2는 I/O 블록 사이즈이다.
+        int nread1,nread2;
+
+        mkfifo("./IO0_PIPE0",0666);
+        mkfifo("./IO1_PIPE0",0666);
+        mkfifo("./IO0_PIPE1",0666);
+        mkfifo("./IO1_PIPE1",0666);
+        mkfifo("./IO0_PIPE2",0666);
+        mkfifo("./IO1_PIPE2",0666);
+        mkfifo("./IO0_PIPE3",0666);
+        mkfifo("./IO1_PIPE3",0666);
+        #ifdef TIMES
+                struct timeval stime,etime1,etime2;
+                int time_result1_s,time_result1_u,time_result2_s,time_result2_u;
+                gettimeofday(&stime,NULL);
+        #endif
+
+         switch(fork()){
+                case -1:
+                        perror("fork");
+                        exit(1);
+                        break;
+                case 0:
+                        switch(fork()){
+                                case -1:
+                                        perror("fork");
+                                        exit(1);
+                                        break;
+                                case 0:/*2번*/
+
+                                        newpd2=open("NEWDATA2",O_RDWR);
+                                        pd2=open("DATA2", O_RDWR, 0644);
+
+                                        mkfifo("./PIPE02",0666);
+                                        mkfifo("./PIPE12",0666);
+                                        mkfifo("./PIPE32",0666);
+
+
+                                        pipe20=open("PIPE20",O_WRONLY);//read실행될때까지 짜피 블록됨즉,0이 시작될때까지.
+                                        lseek(pd2,0*DATA_SIZE/4,SEEK_SET);//1024개 정수 보내야하ㅑㄴ다.
+                                        read(pd2,&move,sizeof(move));
+                                        write(pipe20,&move,sizeof(move));
+                                        //여까지가2에서 0에 데이터 보냄.
+                                        //0번 작업 종료되길 기다림.
+
+                                        pipe21=open("PIPE21",O_WRONLY);//블록되다가 1번노드가
+//메인 일을 할때 시작함.
+
+                                        lseek(pd2,1*DATA_SIZE/4,SEEK_SET);
+                                        read(pd2,&move,sizeof(move));
+                                        write(pipe21,&move,sizeof(move));
+
+                                        sleep(1);//1번 노드 main일 4초라 주자.
+                        //              대략 1번도 종료되길 기다림.i
+                        //              자신 정보를newdata에 다시 재지정해야한다.
+                                        mkfifo("./PIPE02",0666);
+                                        mkfifo("./PIPE12",0666);
+                                        mkfifo("./PIPE32",0666);
+
+                                         pipe02=open("./PIPE02",O_RDONLY);
+                                         pipe12=open("./PIPE12",O_RDONLY);
+                                         pipe32=open("./PIPE32",O_RDONLY);
+
+                                        lseek(pd2,2*DATA_SIZE/4,SEEK_SET);//2k 위치에 있는애들은 가지고있음.
+                                        for(i=0;i<DATA_SIZE/16;i++){                                                              read(pd2,&tmp,sizeof(tmp));
+                                        lseek(newpd2,i*4*4+2*4,SEEK_SET);
+                                         write(newpd2,&tmp,sizeof(tmp));
+
+                                        }
+                                        read(pipe02,&move,sizeof(move));
+
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd2,i*4*4,SEEK_SET);
+                                        write(newpd2,&tmp,sizeof(tmp));
+                                        }//0으로부터 읽음.
+
+                                        read(pipe12,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd2,i*4*4+1*4,SEEK_SET);
+                                        write(newpd2,&tmp,sizeof(tmp));
+                                        }//1로부터 읽음.
+
+                                        read(pipe32,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd2,i*4*4+3*4,SEEK_SET);
+                                        write(newpd2,&tmp,sizeof(tmp));
+                                        }//3으로부터 읽음.
+
+
+                                        //2번 일은 다함.
+
+                                //      sleep(10);//이제 3에 데이터 준다.
+                                        pipe23=open("./PIPE23",O_WRONLY);
+                                        lseek(pd2,3*DATA_SIZE/4,SEEK_SET);
+                                        read(pd2,&move,sizeof(move));
+                                        write(pipe23,&move,sizeof(move));
+                                        //현재 최종.
+
+
+                                        pipe4=open("./IO0_PIPE2",O_WRONLY);
+                                        pipe5=open("./IO1_PIPE2",O_WRONLY);
+
+
+                                        lseek(newpd2,0,SEEK_SET);
+
+
+                                        for(i=0;i<DATA_SIZE/(1024*2*4);i++){
+                                        read(newpd2,buf2,sizeof(buf2));
+                                        while(write(pipe4,buf2,sizeof(buf2))==-1&&errno==EAGAIN);
+
+                                        read(newpd2,buf2,sizeof(buf2));
+                                        while(write(pipe5,buf2,sizeof(buf2))==-1&&errno==EAGAIN);
+                                        }
+
+                                        #ifdef TIMES
+                                                gettimeofday(&etime2,NULL);
+                                                time_result2_s=etime2.tv_sec-stime.tv_sec;
+                                                time_result2_u=etime2.tv_usec-stime.tv_usec;
+                                                printf("프로세스2의 실행시간=%ld초이고 %ld usec이다\n",time_result2_s,time_result2_u);
+                                        #endif
+
+                                        break;
+
+                                default:/*1번 */
+
+                                        newpd1=open("NEWDATA1",O_RDWR);
+                                        pd1 = open("DATA1", O_RDWR, 0644);
+
+
+                                        mkfifo("./PIPE01",0666);
+                                        mkfifo("./PIPE21",0666);
+                                        mkfifo("./PIPE31",0666);
+
+                                        pipe10=open("PIPE10",O_WRONLY);
+                                        lseek(pd1,0*DATA_SIZE/4,SEEK_SET);
+                                        read(pd1,&move,sizeof(move));
+                                        write(pipe10,&move,sizeof(move));
+                                        //0에 정보 제공
+                                        //프로세스 0 4초동안 시행하도록 여유시간 주자.
+                                        sleep(1);
+
+                                        pipe01=open("./PIPE01",O_RDONLY);
+                                        pipe21=open("./PIPE21",O_RDONLY);
+                                        pipe31=open("./PIPE31",O_RDONLY);
+
+
+                                        //이제 자기꺼부터 위치 수정하기
+                                        lseek(pd1,1*DATA_SIZE/4,SEEK_SET);
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        read(pd1,&tmp,sizeof(tmp));
+                                        lseek(newpd1,i*4*4+1*4,SEEK_SET);
+                                        write(newpd1,&tmp,sizeof(tmp));
+
+                                        }
+                                        //이제 0로부터 데이터 받음.
+                                        read(pipe01,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd1,i*4*4+0*4,SEEK_SET);
+                                        write(newpd1,&tmp,sizeof(tmp));
+                                        }
+
+                                        //2로부터 읽음.
+                                        read(pipe21,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd1,i*4*4+2*4,SEEK_SET);
+                                        write(newpd1,&tmp,sizeof(tmp));
+                                        }
+
+
+                                        //3으로부텅 읽음.
+                                        read(pipe31,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd1,i*4*4+3*4,SEEK_SET);
+                                        write(newpd1,&tmp,sizeof(tmp));
+                                        }
+                                        //이제 2와 3으로 데이터를 보낸다.
+                                        pipe12=open("./PIPE12",O_WRONLY);
+                                        lseek(pd1,2*DATA_SIZE/4,SEEK_SET);
+                                        read(pd1,&move,sizeof(move));
+                                        write(pipe12,&move,sizeof(move));
+
+
+                                        pipe13=open("./PIPE13",O_WRONLY);
+                                        lseek(pd1,3*DATA_SIZE/4,SEEK_SET);
+                                        read(pd1,&move,sizeof(move));
+                                        write(pipe13,&move,sizeof(move));
+
+                                        //그럼 해야할 일끝.
+
+                                        pipe2=open("./IO0_PIPE1",O_WRONLY);
+                                        pipe3=open("./IO1_PIPE1",O_WRONLY);
+
+                                        lseek(newpd1,0,SEEK_SET);
+
+
+                                         for(i=0;i<DATA_SIZE/(1024*4*2);i++){
+                                        read(newpd1,buf2,sizeof(buf2));
+
+                                        write(pipe2,buf2,sizeof(buf2));
+
+                                        read(newpd1,buf2,sizeof(buf2));
+                                        write(pipe3,buf2,sizeof(buf2));
+                                        }
+
+
+
+
+
+                                break;
+                        }
+                        break;
+
+                default:
+                        switch(fork()){
+                                case -1:
+                                        perror("fork");
+                                        exit(1);
+                                        break;
+                                case 0:/*3번*/
+
+                                newpd3=open("NEWDATA3",O_RDWR);
+
+                                pd3=open("DATA3", O_RDWR, 0644);
+
+                                mkfifo("./PIPE03",0666);
+                                mkfifo("./PIPE13",0666);
+                                mkfifo("./PIPE23",0666);
+                                //일단 0,1,2번한테 데이터 다 보내기.
+
+                                pipe30=open("./PIPE30",O_WRONLY);
+                                lseek(pd3,0*DATA_SIZE/4,SEEK_SET);
+                                read(pd3,&move,sizeof(move));
+                                write(pipe30,&move,sizeof(move));
+
+                                pipe31=open("./PIPE31",O_WRONLY);
+                                lseek(pd3,1*DATA_SIZE/4,SEEK_SET);
+                                read(pd3,&move,sizeof(move));
+                                write(pipe31,&move,sizeof(move));
+                                //3->1
+
+                                pipe32=open("./PIPE32",O_WRONLY);
+                                lseek(pd3,2*DATA_SIZE/4,SEEK_SET);
+                                read(pd3,&move,sizeof(move));
+                                write(pipe32,&move,sizeof(move));
+                                //3->2  데이터를 2한테 보내고 2가 실행되는 4초동안 수면.
+                                sleep(1);
+                                //이제 자신이 일할찰{.
+
+                                /*mkfifo("./PIPE03",0666);
+                                mkfifo("./PIPE13",0666);
+                                mkfifo("./PIPE23",0666);*/
+
+                                pipe03=open("./PIPE03",O_RDONLY);
+                                pipe13=open("./PIPE13",O_RDONLY);
+                                pipe23=open("./PIPE23",O_RDONLY);
+                                //자기위치로 먼저 이동시키기.
+                                lseek(pd3,3*DATA_SIZE/4,SEEK_SET);
+                                for(i=0;i<DATA_SIZE/16;i++){
+                                read(pd3,&tmp,sizeof(tmp));
+                                lseek(newpd3,i*4*4+3*4,SEEK_SET);
+                                write(newpd3,&tmp,sizeof(tmp));
+                                }
+                                //이제 3에서부터 읽기. 0부터
+                                read(pipe03,&move,sizeof(move));
+                                for(i=0;i<DATA_SIZE/16;i++){
+                                tmp=move[i];
+                                lseek(newpd3,i*4*4+0*4,SEEK_SET);
+                                write(newpd3,&tmp,sizeof(tmp));
+                                }
+
+                                read(pipe13,&move,sizeof(move));
+                                for(i=0;i<DATA_SIZE/16;i++){
+                                tmp=move[i];
+                                lseek(newpd3,i*4*4+1*4,SEEK_SET);
+                                write(newpd3,&tmp,sizeof(tmp));
+                                }
+
+                                read(pipe23,&move,sizeof(move));
+                                for(i=0;i<DATA_SIZE/16;i++){
+                                tmp=move[i];
+                                lseek(newpd3,i*4*4+2*4,SEEK_SET);
+                                write(newpd3,&tmp,sizeof(tmp));
+                                }
+                                //3은자기할일 하고 코드가 끝이다.
+
+                                pipe6=open("./IO0_PIPE3",O_WRONLY);
+                                pipe7=open("./IO1_PIPE3",O_WRONLY);
+                                lseek(newpd3,0,SEEK_SET);
+
+
+                                        for(i=0;i<DATA_SIZE/(1024*2*4);i++){
+                                        read(newpd3,buf2,sizeof(buf2));
+                                        write(pipe6,buf2,sizeof(buf2));
+
+                                        read(newpd3,buf2,sizeof(buf2));
+                                        write(pipe7,buf2,sizeof(buf2));
+                                        }
+
+                                          #ifdef TIMES
+                                                gettimeofday(&etime1,NULL);
+                                                time_result1_s=etime1.tv_sec-stime.tv_sec;
+                                                time_result1_u=etime1.tv_usec-stime.tv_usec;
+                                                printf("프로세스3의 실행시간=%ld초이고 %ld usec이다\n",time_result1_s,time_result1_u);
+                                        #endif
+
+                                         break;
+                                default://0번 1024개의 정수씩 받아서 4096개의 정수를 각각저장.
+                                        //0~4095까지 저장.
+                                        newpd0=open("NEWDATA0",O_RDWR);
+                                         pd0 = open("DATA0", O_RDWR, 0644);
+
+                                        mkfifo("./PIPE10",0666);
+                                        mkfifo("./PIPE20",0666);
+                                        mkfifo("./PIPE30",0666);
+
+                                        pipe10=open("./PIPE10",O_RDONLY);
+                                        pipe20=open("./PIPE20",O_RDONLY);
+                                        pipe30=open("./PIPE30",O_RDONLY);
+
+                                        lseek(pd0,0*DATA_SIZE/4,SEEK_SET);
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        read(pd0,&tmp,sizeof(tmp));
+                                        lseek(newpd0,i*4*4,SEEK_SET);
+                                        write(newpd0,&tmp,sizeof(tmp));
+
+                                        }//자기 데이터 기반으로 재저장.
+
+                                        read(pipe10,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){                                                              tmp=move[i];
+                                        lseek(newpd0,i*4*4+1*4,SEEK_SET);
+                                        write(newpd0,&tmp,sizeof(tmp));
+                                        }
+
+                                        read(pipe20,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd0,i*4*4+2*4,SEEK_SET);
+                                        write(newpd0,&tmp,sizeof(tmp));
+                                        }
+
+                                        read(pipe30,&move,sizeof(move));
+                                        for(i=0;i<DATA_SIZE/16;i++){
+                                        tmp=move[i];
+                                        lseek(newpd0,i*4*4+3*4,SEEK_SET);
+                                        write(newpd0,&tmp,sizeof(tmp));
+                                        }//0에 받은 데이터를 다씀.
+
+                                        //이제 1번에 데이터를 준다.
+
+                                        pipe01=open("./PIPE01",O_WRONLY);
+                                        lseek(pd0,1*DATA_SIZE/4,SEEK_SET);
+                                        read(pd0,&move,sizeof(move));
+                                        write(pipe01,&move,sizeof(move));
+                                        //0에서 1에 데이터를 줬음.
+
+
+                                        pipe02=open("./PIPE02",O_WRONLY);
+                                        lseek(pd0,2*DATA_SIZE/4,SEEK_SET);
+                                        read(pd0,&move,sizeof(move));
+                                        write(pipe02,&move,sizeof(move));
+                                        //0에서 2한테 데이터 줬음.
+
+                                        pipe03=open("./PIPE03",O_WRONLY);
+                                        lseek(pd0,3*DATA_SIZE/4,SEEK_SET);
+                                        read(pd0,&move,sizeof(move));
+                                        write(pipe03,&move,sizeof(move));
+                                        //0에서 3한테 데이터 줬음.
+
+                                        pipe0=open("./IO0_PIPE0",O_WRONLY);
+                                        pipe1=open("./IO1_PIPE0",O_WRONLY);
+
+                                        lseek(newpd0,0,SEEK_SET);
+                                        for(i=0;i<DATA_SIZE/(1024*2*4);i++){
+                                        read(newpd0,buf2,sizeof(buf2));
+
+                                        write(pipe0,buf2,sizeof(buf2));
+
+                                        read(newpd0,buf2,sizeof(buf2));
+                                        write(pipe1,buf2,sizeof(buf2));
+                                        }
+                                                                  
+                                        break;
+
+                                                                                                 }
+                                                                                                                         break;
+
+                                                                                                                                 }
+ }
